@@ -13,6 +13,8 @@ public class Room {
     private Timestamp lastClean;
     private Date nextMaintenance;
     private Timestamp createTime;
+    private String roomImages;  // 房间图片(JSON数组)
+    private String floorPlan;   // 平面图路径
 
 
     public Room() {
@@ -29,8 +31,10 @@ public class Room {
         this.lastClean = lastClean;
         this.nextMaintenance = nextMaintenance;
         this.createTime = createTime;
-
+        this.roomImages = roomImages;
+        this.floorPlan = floorPlan;
     }
+    
 
     public int getRoomId() {
         return roomId;
@@ -104,6 +108,22 @@ public class Room {
         this.createTime = createTime;
     }
 
+    public String getRoomImages() {
+        return roomImages;
+    }
+
+    public void setRoomImages(String roomImages) {
+        this.roomImages = roomImages;
+    }
+
+    public String getFloorPlan() {
+        return floorPlan;
+    }
+
+    public void setFloorPlan(String floorPlan) {
+        this.floorPlan = floorPlan;
+    }
+
     @Override
     public String toString() {
         return "Room{" +
@@ -116,6 +136,8 @@ public class Room {
                 ", lastClean=" + lastClean +
                 ", nextMaintenance=" + nextMaintenance +
                 ", createTime=" + createTime +
+                ", roomImages='" + roomImages + '\'' +
+                ", floorPlan='" + floorPlan + '\'' +
                 '}';
     }
 }

@@ -121,6 +121,7 @@ public class RoomServlet extends HttpServlet {
             if (result > 0) {
                 map.put("message", "success");
                 map.put("roomId", room.getRoomId());
+                map.put("tip", "房间创建成功，可上传图片");
             } else {
                 map.put("message", "fail");
                 map.put("error", "Failed to save room");
@@ -130,6 +131,12 @@ public class RoomServlet extends HttpServlet {
             Map<String, Object> map = new HashMap<>();
             map.put("message", "fail");
             map.put("error", "Invalid numeric parameter: " + e.getMessage());
+            resp.getWriter().write(JSON.toJSONString(map));
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, Object> map = new HashMap<>();
+            map.put("message", "fail");
+            map.put("error", "Server error: " + e.getMessage());
             resp.getWriter().write(JSON.toJSONString(map));
         }
     }
@@ -142,6 +149,7 @@ public class RoomServlet extends HttpServlet {
             Map<String, Object> map = new HashMap<>();
             if (result > 0) {
                 map.put("message", "success");
+                map.put("tip", "房间更新成功，图片信息已同步更新");
             } else {
                 map.put("message", "fail");
                 map.put("error", "Failed to update room");
@@ -151,6 +159,12 @@ public class RoomServlet extends HttpServlet {
             Map<String, Object> map = new HashMap<>();
             map.put("message", "fail");
             map.put("error", "Invalid numeric parameter: " + e.getMessage());
+            resp.getWriter().write(JSON.toJSONString(map));
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, Object> map = new HashMap<>();
+            map.put("message", "fail");
+            map.put("error", "Server error: " + e.getMessage());
             resp.getWriter().write(JSON.toJSONString(map));
         }
     }
@@ -208,11 +222,21 @@ public class RoomServlet extends HttpServlet {
         }
 
         int roomId = Integer.parseInt(roomIdStr);
-        roomDAO.delete(roomId);
+        try {
+            // 删除房间及其关联的图片
+            roomDAO.delete(roomId);
 
-        Map<String, Object> map = new HashMap<>();
-        map.put("message", "success");
-        resp.getWriter().write(JSON.toJSONString(map));
+            Map<String, Object> map = new HashMap<>();
+            map.put("message", "success");
+            map.put("tip", "房间已删除，相关图片也已清理");
+            resp.getWriter().write(JSON.toJSONString(map));
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, Object> map = new HashMap<>();
+            map.put("message", "fail");
+            map.put("error", "Failed to delete room: " + e.getMessage());
+            resp.getWriter().write(JSON.toJSONString(map));
+        }
     }
 
     private Room parseRoomFromRequest(HttpServletRequest req) throws NumberFormatException {
@@ -228,8 +252,27 @@ public class RoomServlet extends HttpServlet {
         room.setFloor(Integer.parseInt(req.getParameter("floor")));
         room.setViewType(req.getParameter("viewType"));
         room.setStatus(req.getParameter("status"));
-        // room.setRoomImages(req.getParameter("roomImages"));
-        // room.setFloorPlan(req.getParameter("floorPlan"));
+        room.setRoomImages(req.getParameter("roomImages"));
+        room.setFloorPlan(req.getParameter("floorPlan"));
+
+        // 处理日期字段
+        String lastCleanStr = req.getParameter("lastClean");
+        if (lastCleanStr != null && !lastCleanStr.isEmpty()) {
+            try {
+                room.setLastClean(new java.sql.Timestamp(new java.util.Date(Long.parseLong(lastCleanStr)).getTime()));
+            } catch (Exception e) {
+                // 日期格式错误，忽略
+            }
+        }
+
+        String nextMaintenanceStr = req.getParameter("nextMaintenance");
+        if (nextMaintenanceStr != null && !nextMaintenanceStr.isEmpty()) {
+            try {
+                room.setNextMaintenance(new java.util.Date(Long.parseLong(nextMaintenanceStr)));
+            } catch (Exception e) {
+                // 日期格式错误，忽略
+            }
+        }
 
         return room;
     }

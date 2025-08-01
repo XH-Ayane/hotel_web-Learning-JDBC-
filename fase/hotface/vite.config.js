@@ -14,13 +14,19 @@ export default defineConfig({
         open: false, 
 		 // 服务器代理配置
         proxy: {
-         //当url地址包含 /api/字符串时，将当前url请求交给代理服务器，代理服务将采用 target属性指定的域名
+          // 当url地址包含 /api/字符串时，将当前url请求交给代理服务器
           "^/api": {
-            target: "http://127.0.0.1:8080", // 真实接口地址, 后端给的基地址
+            target: "http://127.0.0.1:8080", // 真实接口地址
             changeOrigin: true, // 允许跨域
-            secure: false,  //关键参数，替换url中的 / api / 为空字符串
+            secure: false,
             rewrite: (path) => path.replace(/^\/api/, '')
           },
+          // 代理/uploads路径的请求到后端服务器
+          "^/uploads": {
+            target: "http://127.0.0.1:8080",
+            changeOrigin: true,
+            secure: false
+          }
         },
     }
   

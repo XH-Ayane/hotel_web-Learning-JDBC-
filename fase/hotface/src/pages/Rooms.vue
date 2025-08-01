@@ -44,7 +44,7 @@
       </el-table-column>
       <el-table-column label="客房图片" width="150px">
         <template #default="scope">
-          <img style="width: 100px; height: 100px;" :src='scope.row.roomImages ? "/api/" + scope.row.roomImages : "/default-room.jpg"' alt="客房图片">
+          <img style="width: 100px; height: 100px;" :src='scope.row.roomImages ? "/api" + scope.row.roomImages.split(",")[0] : "/default-room.jpg"' alt="客房图片">
         </template>
       </el-table-column>
       <el-table-column label="客房状态">
@@ -104,7 +104,8 @@
         </el-select>
       </el-form-item>
       <el-form-item label="客房图片">
-        <el-upload action="/api/upload" list-type="picture-card" :on-success="handleImageUpload">
+        <div v-if="!roomForm.roomId" class="upload-tip">请先保存客房信息获取房间ID后再上传图片</div>        
+        <el-upload action="/api/roomFileUploadServlet" list-type="picture-card" :data="{roomId: roomForm.roomId, imageType: 'view'}" :on-success="handleImageUpload" :disabled="!roomForm.roomId">
           <el-icon><Plus /></el-icon>
         </el-upload>
       </el-form-item>
@@ -173,9 +174,9 @@ const loadRoomList = async () => {
         method: 'getRoomsByPage',
         currentPage: currentPage.value,
         pageSize: pageSize.value,
-        keyword: searchKeyword.value,
-        typeId: selectedTypeId.value,
-        status: selectedStatus.value
+        keyword: searchKeyword.value || null,
+        typeId: selectedTypeId.value || null,
+        status: selectedStatus.value || null
       }
     });
     if (response.data.message === 'success') {
@@ -211,7 +212,10 @@ const handleCurrentChange = (val) => {
 
 const addRoom = () => {
   dialogTitle.value = 'addRoom';
-  roomForm.value = { status: 'available' };
+  roomForm.value = { 
+    status: 'available',
+    roomImages: ''
+  };
   dialogVisible.value = true;
 };
 
@@ -228,8 +232,20 @@ const handleSubmit = async () => {
       params: { method, ...roomForm.value }
     });
     if (response.data.message === 'success') {
-      ElMessage.success(dialogTitle.value === 'addRoom' ? '新增成功' : '修改成功');
-      dialogVisible.value = false;
+      if (dialogTitle.value === 'addRoom') {
+        // 新增成功，获取roomId并更新表单
+        if (response.data.data && response.data.data.roomId) {
+          roomForm.value.roomId = response.data.data.roomId;
+          ElMessage.success('新增成功，请上传客房图片');
+        } else {
+          ElMessage.success('新增成功');
+          dialogVisible.value = false;
+        }
+      } else {
+        // 修改成功，关闭对话框
+        ElMessage.success('修改成功');
+        dialogVisible.value = false;
+      }
       loadRoomList();
     }
   } catch (error) {
@@ -337,16 +353,25 @@ const updateRoomStatus = async (roomId, status) => {
 };
 
 const handleImageUpload = (response, file, fileList) => {
-  if (response.code === 200) {
-    roomForm.value.roomImages = response.data;
+  if (response.success) {
+    // 使用新的响应格式中的url字段
+    roomForm.value.roomImages = response.url;
     ElMessage.success('图片上传成功');
   } else {
-    ElMessage.error('图片上传失败');
+    ElMessage.error('图片上传失败: ' + (response.message || '未知错误'));
   }
 };
 </script>
 
 <style scoped>
+.upload-tip {
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  color: #606266;
+}
+
 .rooms-container {
   padding: 20px;
 }

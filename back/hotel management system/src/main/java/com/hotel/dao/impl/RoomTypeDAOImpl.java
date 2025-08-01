@@ -38,8 +38,8 @@ public class RoomTypeDAOImpl implements RoomTypeDAO {
                 room.setLastClean(rs.getTimestamp("last_clean"));
                 room.setNextMaintenance(rs.getDate("next_maintenance"));
                 room.setCreateTime(rs.getTimestamp("create_time"));
-//                room.setRoomImages(rs.getString("room_images"));
-//                room.setFloorPlan(rs.getString("floor_plan"));
+                // room.setRoomImages(rs.getString("room_images"));
+                // room.setFloorPlan(rs.getString("floor_plan"));
 
                 list.add(room);
             }
@@ -74,8 +74,8 @@ public class RoomTypeDAOImpl implements RoomTypeDAO {
                 roomType.setDescription(rs.getString("description"));
                 roomType.setActive(rs.getBoolean("is_active"));
                 roomType.setCreateTime(rs.getTimestamp("create_time"));
-//                roomType.setCoverImage(rs.getString("cover_image"));
-//                roomType.setImageGallery(rs.getString("image_gallery"));
+                // roomType.setCoverImage(rs.getString("cover_image"));
+                // roomType.setImageGallery(rs.getString("image_gallery"));
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -129,8 +129,8 @@ public class RoomTypeDAOImpl implements RoomTypeDAO {
                 roomType.setDescription(rs.getString("description"));
                 roomType.setActive(rs.getBoolean("is_active"));
                 roomType.setCreateTime(rs.getTimestamp("create_time"));
-//                roomType.setCoverImage(rs.getString("cover_image"));
-//                roomType.setImageGallery(rs.getString("image_gallery"));
+                // roomType.setCoverImage(rs.getString("cover_image"));
+                // roomType.setImageGallery(rs.getString("image_gallery"));
 
                 roomTypes.add(roomType);
             }
@@ -189,8 +189,8 @@ public class RoomTypeDAOImpl implements RoomTypeDAO {
                 roomType.setDescription(rs.getString("description"));
                 roomType.setActive(rs.getBoolean("is_active"));
                 roomType.setCreateTime(rs.getTimestamp("create_time"));
-//                roomType.setCoverImage(rs.getString("cover_image"));
-//                roomType.setImageGallery(rs.getString("image_gallery"));
+                // roomType.setCoverImage(rs.getString("cover_image"));
+                // roomType.setImageGallery(rs.getString("image_gallery"));
             }
         } catch (Exception e) {
             e.printStackTrace();

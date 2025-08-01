@@ -21,7 +21,15 @@ public class RoomDAOImpl implements RoomDAO {
         Room room = null;
         try {
             cn = JdbcUtils.getConnection();
-            String sql = "SELECT * FROM room WHERE room_id = ?";
+            String sql = "SELECT r.*, " +
+                    "GROUP_CONCAT(CASE WHEN ri.image_type = 'view' THEN ri.image_url END SEPARATOR ',') AS room_images, "
+                    +
+                    "GROUP_CONCAT(CASE WHEN ri.image_type = 'floor_plan' THEN ri.image_url END SEPARATOR ',') AS floor_plan "
+                    +
+                    "FROM room r " +
+                    "LEFT JOIN room_images ri ON r.room_id = ri.room_id " +
+                    "WHERE r.room_id = ? " +
+                    "GROUP BY r.room_id";
             ps = cn.prepareStatement(sql);
             ps.setInt(1, roomId);
             rs = ps.executeQuery();
@@ -37,6 +45,8 @@ public class RoomDAOImpl implements RoomDAO {
                 room.setLastClean(rs.getTimestamp("last_clean"));
                 room.setNextMaintenance(rs.getDate("next_maintenance"));
                 room.setCreateTime(rs.getTimestamp("create_time"));
+                room.setRoomImages(rs.getString("room_images"));
+                room.setFloorPlan(rs.getString("floor_plan"));
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -122,7 +132,14 @@ public class RoomDAOImpl implements RoomDAO {
         List<Room> rooms = new ArrayList<>();
         try {
             cn = JdbcUtils.getConnection();
-            String sql = "SELECT * FROM room";
+            String sql = "SELECT r.*, " +
+                    "GROUP_CONCAT(CASE WHEN ri.image_type = 'view' THEN ri.image_url END SEPARATOR ',') AS room_images, "
+                    +
+                    "GROUP_CONCAT(CASE WHEN ri.image_type = 'floor_plan' THEN ri.image_url END SEPARATOR ',') AS floor_plan "
+                    +
+                    "FROM room r " +
+                    "LEFT JOIN room_images ri ON r.room_id = ri.room_id " +
+                    "GROUP BY r.room_id";
             ps = cn.prepareStatement(sql);
             rs = ps.executeQuery();
 
@@ -137,6 +154,8 @@ public class RoomDAOImpl implements RoomDAO {
                 room.setLastClean(rs.getTimestamp("last_clean"));
                 room.setNextMaintenance(rs.getDate("next_maintenance"));
                 room.setCreateTime(rs.getTimestamp("create_time"));
+                room.setRoomImages(rs.getString("room_images"));
+                room.setFloorPlan(rs.getString("floor_plan"));
                 rooms.add(room);
             }
         } catch (Exception e) {
@@ -160,10 +179,14 @@ public class RoomDAOImpl implements RoomDAO {
 
         try {
             cn = JdbcUtils.getConnection();
-            String sql = "UPDATE room SET room_number=?, type_id=?, floor=?, view_type=?, " +
-                    "status=?, last_clean=?, next_maintenance=? " + // 添加空格
+            // 开始事务
+            cn.setAutoCommit(false);
+
+            // 更新room表基本信息
+            String sqlRoom = "UPDATE room SET room_number=?, type_id=?, floor=?, view_type=?, " +
+                    "status=?, last_clean=?, next_maintenance=? " +
                     "WHERE room_id=?";
-            ps = cn.prepareStatement(sql);
+            ps = cn.prepareStatement(sqlRoom);
             ps.setString(1, room.getRoomNumber());
             ps.setInt(2, room.getTypeId());
             ps.setInt(3, room.getFloor());
@@ -180,17 +203,67 @@ public class RoomDAOImpl implements RoomDAO {
             } else {
                 ps.setNull(7, java.sql.Types.DATE);
             }
-            // ps.setString(8, room.getRoomImages());
-            // ps.setString(9, room.getFloorPlan());
             ps.setInt(8, room.getRoomId());
 
             result = ps.executeUpdate();
+
+            // 更新房间图片信息
+            updateRoomImages(cn, room.getRoomId(), room.getRoomImages(), "view");
+            updateRoomImages(cn, room.getRoomId(), room.getFloorPlan(), "floor_plan");
+
+            // 提交事务
+            cn.commit();
         } catch (Exception e) {
+            // 回滚事务
+            try {
+                if (cn != null) {
+                    cn.rollback();
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
             e.printStackTrace();
         } finally {
+            // 恢复自动提交
+            try {
+                if (cn != null) {
+                    cn.setAutoCommit(true);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
             JdbcUtils.close(null, ps, cn);
         }
         return result;
+    }
+
+    /**
+     * 更新房间图片信息
+     */
+    private void updateRoomImages(Connection cn, int roomId, String imageUrls, String imageType) throws Exception {
+        // 先删除旧的图片
+        String deleteSql = "DELETE FROM room_images WHERE room_id = ? AND image_type = ?";
+        PreparedStatement deletePs = cn.prepareStatement(deleteSql);
+        deletePs.setInt(1, roomId);
+        deletePs.setString(2, imageType);
+        deletePs.executeUpdate();
+        JdbcUtils.close(null, deletePs, null);
+
+        // 如果有新图片，添加它们
+        if (imageUrls != null && !imageUrls.isEmpty() && !"null".equalsIgnoreCase(imageUrls)) {
+            String insertSql = "INSERT INTO room_images (room_id, image_url, image_type) VALUES (?, ?, ?)";
+            PreparedStatement insertPs = cn.prepareStatement(insertSql);
+            String[] urls = imageUrls.split(",");
+            for (String url : urls) {
+                if (url != null && !url.trim().isEmpty()) {
+                    insertPs.setInt(1, roomId);
+                    insertPs.setString(2, url.trim());
+                    insertPs.setString(3, imageType);
+                    insertPs.executeUpdate();
+                }
+            }
+            JdbcUtils.close(null, insertPs, null);
+        }
     }
 
     @Override
@@ -217,13 +290,43 @@ public class RoomDAOImpl implements RoomDAO {
         PreparedStatement ps = null;
         try {
             cn = JdbcUtils.getConnection();
-            String sql = "DELETE FROM room WHERE room_id = ?";
-            ps = cn.prepareStatement(sql);
+            // 开始事务
+            cn.setAutoCommit(false);
+
+            // 先删除关联的图片数据
+            String deleteImagesSql = "DELETE FROM room_images WHERE room_id = ?";
+            ps = cn.prepareStatement(deleteImagesSql);
             ps.setInt(1, roomId);
             ps.executeUpdate();
+            JdbcUtils.close(null, ps, null);
+
+            // 再删除房间数据
+            String deleteRoomSql = "DELETE FROM room WHERE room_id = ?";
+            ps = cn.prepareStatement(deleteRoomSql);
+            ps.setInt(1, roomId);
+            ps.executeUpdate();
+
+            // 提交事务
+            cn.commit();
         } catch (Exception e) {
+            // 回滚事务
+            try {
+                if (cn != null) {
+                    cn.rollback();
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
             e.printStackTrace();
         } finally {
+            // 恢复自动提交
+            try {
+                if (cn != null) {
+                    cn.setAutoCommit(true);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
             JdbcUtils.close(null, ps, cn);
         }
     }
@@ -236,10 +339,14 @@ public class RoomDAOImpl implements RoomDAO {
 
         try {
             cn = JdbcUtils.getConnection();
-            String sql = "INSERT INTO room (room_number, type_id, floor, view_type, status, " +
+            // 开始事务
+            cn.setAutoCommit(false);
+
+            // 添加房间基本信息
+            String sqlRoom = "INSERT INTO room (room_number, type_id, floor, view_type, status, " +
                     "last_clean, next_maintenance, create_time) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-            ps = cn.prepareStatement(sql);
+            ps = cn.prepareStatement(sqlRoom, PreparedStatement.RETURN_GENERATED_KEYS);
             ps.setString(1, room.getRoomNumber());
             ps.setInt(2, room.getTypeId());
             ps.setInt(3, room.getFloor());
@@ -262,13 +369,45 @@ public class RoomDAOImpl implements RoomDAO {
             } else {
                 ps.setTimestamp(8, new java.sql.Timestamp(System.currentTimeMillis()));
             }
-            // ps.setString(9, room.getRoomImages());
-            // ps.setString(10, room.getFloorPlan());
 
             result = ps.executeUpdate();
+
+            // 获取生成的房间ID
+            ResultSet rs = ps.getGeneratedKeys();
+            int roomId = 0;
+            if (rs.next()) {
+                roomId = rs.getInt(1);
+                room.setRoomId(roomId);
+            }
+            JdbcUtils.close(rs, null, null);
+
+            // 添加房间图片信息
+            if (roomId > 0) {
+                updateRoomImages(cn, roomId, room.getRoomImages(), "view");
+                updateRoomImages(cn, roomId, room.getFloorPlan(), "floor_plan");
+            }
+
+            // 提交事务
+            cn.commit();
         } catch (Exception e) {
+            // 回滚事务
+            try {
+                if (cn != null) {
+                    cn.rollback();
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
             e.printStackTrace();
         } finally {
+            // 恢复自动提交
+            try {
+                if (cn != null) {
+                    cn.setAutoCommit(true);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
             JdbcUtils.close(null, ps, cn);
         }
         return result;
@@ -289,10 +428,19 @@ public class RoomDAOImpl implements RoomDAO {
         try {
             cn = JdbcUtils.getConnection();
             StringBuilder sql = new StringBuilder(
-                    "SELECT r.*, rt.type_name, rt.bed_type, rt.max_guests, rt.base_price " +
-                            "FROM room r LEFT JOIN room_type rt ON r.type_id = rt.type_id WHERE 1=1");
+                    "SELECT r.room_id, r.room_number, r.type_id, r.floor, r.view_type, r.status, " +
+                            "r.last_clean, r.next_maintenance, r.create_time, " +
+                            "rt.type_name, rt.bed_type, rt.max_guests, rt.base_price, " +
+                            "GROUP_CONCAT(CASE WHEN ri.image_type = 'view' THEN ri.image_url END SEPARATOR ',') AS room_images, "
+                            +
+                            "GROUP_CONCAT(CASE WHEN ri.image_type = 'floor_plan' THEN ri.image_url END SEPARATOR ',') AS floor_plan "
+                            +
+                            "FROM room r " +
+                            "LEFT JOIN room_type rt ON r.type_id = rt.type_id " +
+                            "LEFT JOIN room_images ri ON r.room_id = ri.room_id ");
 
-            // 添加搜索条件
+            // 先添加WHERE条件
+            sql.append(" WHERE 1=1 ");
             if (keyword != null && !keyword.isEmpty()) {
                 sql.append(" AND r.room_number LIKE ?");
                 params.add("%" + keyword + "%");
@@ -305,6 +453,11 @@ public class RoomDAOImpl implements RoomDAO {
                 sql.append(" AND r.status = ?");
                 params.add(status);
             }
+
+            // 再添加GROUP BY
+            sql.append(" GROUP BY r.room_id");
+
+            // 筛选条件已在前面的WHERE子句中添加
 
             sql.append(" ORDER BY r.room_id ASC LIMIT ?, ?");
             params.add(offset);
@@ -329,6 +482,8 @@ public class RoomDAOImpl implements RoomDAO {
                 room.setLastClean(rs.getTimestamp("last_clean"));
                 room.setNextMaintenance(rs.getDate("next_maintenance"));
                 room.setCreateTime(rs.getTimestamp("create_time"));
+                room.setRoomImages(rs.getString("room_images"));
+                room.setFloorPlan(rs.getString("floor_plan"));
 
                 // 设置从room_type表查询的字段
                 roomType.setTypeName(rs.getString("type_name"));
